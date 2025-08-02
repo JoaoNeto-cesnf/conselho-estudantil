@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Conselho Estudantil - CENSF | Admin</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body style="background: linear-gradient(to bottom right, #1F2937, #111827); color: #F3F4F6; margin: 0; min-height: 100vh; overflow-x: hidden;">
+  <div id="root" style="min-height: 100vh; display: flex; flex-direction: column;"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const validateInput = (value, field) => {
+      if (!value.trim()) return `${field} não pode estar vazio!`;
+      return "";
+    };
+
+    const updateStorage = (key, value) => {
+      localStorage.setItem(key, JSON.stringify(value));
+      return value;
+    };
+
+    const App = () => {
+      const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem("currentUser")) || null);
+      const [users, setUsers] = useState(JSON.parse(localStorage.getItem("users")) || []);
+      const [name, setName] = useState("");
+      const [password, setPassword] = useState("");
+      const [modalMessage, setModalMessage] = useState("");
+      const [showModal, setShowModal] = useState(false);
+      const [selectedUser, setSelectedUser] = useState(null);
+      const [showUserModal, setShowUserModal] = useState(false);
+      const [showConfirmModal, setShowConfirmModal] = useState(false);
+      const [userToDelete, setUserToDelete] = useState(null);
+      const [pointsYear, setPointsYear] = useState("");
+      const [pointsAmount, setPointsAmount] = useState("");
+      const [pointsReason, setPointsReason] = useState("");
+      const [history, setHistory] = useState(JSON.parse(localStorage.getItem("history")) || []);
+      const [adminUserId, setAdminUserId] = useState("");
+      const [individualUserId, setIndividualUserId] = useState("");
+      const [individualPoints, setIndividualPoints] = useState("");
+      const [individualReason, setIndividualReason] = useState("");
+      const [searchTerm, setSearchTerm] = useState("");
+      const [activeSection, setActiveSection] = useState("alterPointsYear");
+      const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+      const [showMobileMenu, setShowMobileMenu] = useState(false);
+      const [sidebarFixed, setSidebarFixed] = useState(false);
+      const [showTutorial, setShowTutorial] = useState(false);
+      const [tutorialStep, setTutorialStep] = useState(0);
+      const [chatMessages, setChatMessages] = useState(JSON.parse(localStorage.getItem("adminChat")) || []);
+      const [chatInput, setChatInput] = useState("");
+
+      useEffect(() => {
+        if (!currentUser) return;
+        if (!currentUser.isAdmin) {
+          setCurrentUser(null);
+          localStorage.removeItem("currentUser");
+          setModalMessage("Acesso restrito a administradores!");
+          setShowModal(true);
+        }
+      }, [currentUser]);
+
+      const login = () => {
+        const nameError = validateInput(name, "Nome");
+        const passwordError = validateInput(password, "Senha");
+        if (nameError || passwordError) {
+          setModalMessage(nameError || passwordError);
+          setShowModal(true);
+          return;
+        }
+        const user = users.find(u => u.name === name && u.password === password && u.isAdmin);
+        if (!user) {
+          setModalMessage("Nome ou senha incorretos, ou não é administrador!");
+          setShowModal(true);
+          return;
+        }
+        setCurrentUser(user);
+        updateStorage("currentUser", user);
+        setName("");
+        setPassword("");
+      };
+
+      const logout = () => {
+        setCurrentUser(null);
+        localStorage.removeItem("currentUser");
+        window.location.href = "index.html";
+      };
+
+      const alterPoints = (e) => {
+        e.preventDefault();
+        const yearError = validateInput(pointsYear, "Ano");
+        const amountError = validateInput(pointsAmount, "Pontos");
+        const reasonError = validateInput(pointsReason, "Motivo");
+        if (yearError || amountError || reasonError) {
+          setModalMessage(yearError || amountError || reasonError);
+          setShowModal(true);
+          return;
+        }
+        const yearPoints = JSON.parse(localStorage.getItem("yearPoints")) || {};
+        const newPoints = (yearPoints[pointsYear] || 0) + Number(pointsAmount);
+        if (newPoints < 0) {
+          setModalMessage("Pontos do ano não podem ficar negativos!");
+          setShowModal(true);
+          return;
+        }
+        yearPoints[pointsYear] = newPoints;
+        updateStorage("yearPoints", yearPoints);
+        const newHistory = [...history, {
+          year: pointsYear,
+          points: Number(pointsAmount),
+          reason: pointsReason,
+          admin: currentUser.name,
+          date: new Date().toLocaleString()
+        }];
+        setHistory(updateStorage("history", newHistory));
+        const messages = JSON.parse(localStorage.getItem("messages")) || [];
+        const yearUsers = users.filter(u => u.year === pointsYear && !u.isAdmin);
+        yearUsers.forEach(u => {
+          messages.push({
+            from: "Sistema",
+            to: u.id,
+            text: `Os pontos do ${pointsYear}º ano foram alterados em ${pointsAmount} pontos. Motivo: ${pointsReason}`,
+            date: new Date().toLocaleString(),
+            read: false
+          });
+        });
+        updateStorage("messages", messages);
+        setModalMessage(`Pontos alterados para ${pointsYear}º ano!`);
+        setShowModal(true);
+        setPointsYear("");
+        setPointsAmount("");
+        setPointsReason("");
+      };
+
+      const alterIndividualPoints = (e) => {
+        e.preventDefault();
+        const userError = validateInput(individualUserId, "Usuário");
+        const pointsError = validateInput(individualPoints, "Pontos");
+        const reasonError = validateInput(individualReason, "Motivo");
+        if (userError || pointsError || reasonError) {
+          setModalMessage(userError || pointsError || reasonError);
+          setShowModal(true);
+          return;
+        }
+        const user = users.find(u => u.id === Number(individualUserId));
+        if (!user || user.isSuperAdmin) {
+          setModalMessage("Usuário inválido ou protegido!");
+          setShowModal(true);
+          return;
+        }
+        const newPoints = (user.points || 0) + Number(individualPoints);
+        if (newPoints < 0) {
+          setModalMessage("Pontos do usuário não podem ficar negativos!");
+          setShowModal(true);
+          return;
+        }
+        const updatedUsers = users.map(u =>
+          u.id === Number(individualUserId) ? { ...u, points: newPoints } : u
+        );
+        setUsers(updateStorage("users", updatedUsers));
+        const newHistory = [...history, {
+          year: user.year,
+          user: user.name,
+          points: Number(individualPoints),
+          reason: individualReason,
+          admin: currentUser.name,
+          date: new Date().toLocaleString()
+        }];
+        setHistory(updateStorage("history", newHistory));
+        const messages = JSON.parse(localStorage.getItem("messages")) || [];
+        messages.push({
+          from: "Sistema",
+          to: Number(individualUserId),
+          text: `Seus pontos foram alterados em ${individualPoints} pontos. Motivo: ${individualReason}`,
+          date: new Date().toLocaleString(),
+          read: false
+        });
+        updateStorage("messages", messages);
+        setModalMessage(`Pontos alterados para ${user.name}!`);
+        setShowModal(true);
+        setIndividualUserId("");
+        setIndividualPoints("");
+        setIndividualReason("");
+      };
+
+      const toggleBlock = (userId) => {
+        const updatedUsers = users.map(u => u.id === userId && !u.isSuperAdmin ? { ...u, blocked: !u.blocked } : u);
+        setUsers(updateStorage("users", updatedUsers));
+        const messages = JSON.parse(localStorage.getItem("messages")) || [];
+        const user = users.find(u => u.id === userId);
+        messages.push({
+          from: "Sistema",
+          to: userId,
+          text: `Sua conta foi ${user.blocked ? "desbloqueada" : "bloqueada"} por ${currentUser.name}!`,
+          date: new Date().toLocaleString(),
+          read: false
+        });
+        updateStorage("messages", messages);
+      };
+
+      const deleteUser = () => {
+        if (userToDelete.isSuperAdmin) return;
+        const updatedUsers = users.filter(u => u.id !== userToDelete.id);
+        setUsers(updateStorage("users", updatedUsers));
+        setModalMessage(`Sucesso: ${userToDelete.name} foi excluído!`);
+        setShowModal(true);
+        setShowConfirmModal(false);
+        setUserToDelete(null);
+      };
+
+      const toggleAdmin = (userId) => {
+        if (!userId) {
+          setModalMessage("Selecione um usuário!");
+          setShowModal(true);
+          return;
+        }
+        const updatedUsers = users.map(u => u.id === Number(userId) && !u.isSuperAdmin ? { ...u, isAdmin: !u.isAdmin } : u);
+        setUsers(updateStorage("users", updatedUsers));
+        const user = users.find(u => u.id === Number(userId));
+        setModalMessage(`Sucesso: ${user.name} agora ${user.isAdmin ? "não é mais" : "é"} administrador!`);
+        setShowModal(true);
+        setAdminUserId("");
+      };
+
+      const filteredUsers = users.filter(u =>
+        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.year.toString().includes(searchTerm)
+      );
+
+      const handleMouseEnter = () => {
+        if (!sidebarFixed) setIsSidebarExpanded(true);
+      };
+
+      const handleMouseLeave = () => {
+        if (!sidebarFixed) setTimeout(() => setIsSidebarExpanded(false), 300);
+      };
+
+      const sendChatMessage = (e) => {
+        e.preventDefault();
+        if (!chatInput.trim()) return;
+        const newMessage = {
+          from: currentUser.name,
+          text: chatInput,
+          date: new Date().toLocaleString(),
+          read: false
+        };
+        const updatedMessages = [...chatMessages, newMessage];
+        setChatMessages(updatedMessages);
+        updateStorage("adminChat", updatedMessages);
+        setChatInput("");
+      };
+
+      const nextTutorialStep = () => {
+        if (tutorialStep < 4) setTutorialStep(tutorialStep + 1);
+        else setShowTutorial(false);
+      };
+
+      const tutorialSteps = [
+        { text: "Bem-vindo ao painel! Clique aqui pra gerenciar pontos do ano.", target: "alterPointsYear" },
+        { text: "Use esta seção pra alterar pontos individuais.", target: "alterPointsIndividual" },
+        { text: "Gerencie administradores aqui.", target: "manageAdmins" },
+        { text: "Veja a lista de alunos cadastrados.", target: "usersList" },
+        { text: "Confira o histórico de alterações.", target: "history" }
+      ];
+
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          {!currentUser || !currentUser.isAdmin ? (
+            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(to bottom right, #1F2937, #111827)' }}>
+              <div style={{ textAlign: 'center', padding: '1rem' }}>
+                <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', marginBottom: '1.5rem', color: '#3B82F6' }}>Login do Administrador</h1>
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', maxWidth: '28rem', width: '90%' }}>
+                  <form onSubmit={(e) => { e.preventDefault(); login(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Nome de Usuário"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <button
+                      type="submit"
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Entrar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flex: 1, minHeight: '100vh' }}>
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  height: '100%',
+                  backgroundColor: '#1F2937',
+                  borderRight: '1px solid #374151',
+                  transition: 'width 0.5s ease',
+                  width: sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem'),
+                  zIndex: 10,
+                }}
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+                  <span style={{ color: '#3B82F6', fontWeight: 'bold', display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>CENSF Admin</span>
+                  <div>
+                    <button
+                      style={{ display: 'block', color: '#3B82F6', marginBottom: '0.5rem' }}
+                      className="sm:hidden"
+                      onClick={() => setShowMobileMenu(true)}
+                    >
+                      <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setSidebarFixed(!sidebarFixed)}
+                      style={{
+                        display: isSidebarExpanded || sidebarFixed ? 'block' : 'none',
+                        color: '#3B82F6',
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '0.375rem',
+                        backgroundColor: sidebarFixed ? '#374151' : 'transparent',
+                        transition: 'all 0.3s'
+                      }}
+                      onMouseOver={(e) => !sidebarFixed && (e.target.style.backgroundColor = '#374151')}
+                      onMouseOut={(e) => !sidebarFixed && (e.target.style.backgroundColor = 'transparent')}
+                    >
+                      {sidebarFixed ? 'Desfixar' : 'Fixar'}
+                    </button>
+                  </div>
+                </div>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                  <button
+                    onClick={() => { setActiveSection("alterPointsYear"); setShowTutorial(true); }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '1rem',
+                      color: activeSection === "alterPointsYear" ? '#F3F4F6' : '#3B82F6',
+                      backgroundColor: activeSection === "alterPointsYear" ? '#374151' : 'transparent',
+                      transition: 'all 0.3s'
+                    }}
+                    title="Pontos do Ano"
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "alterPointsYear" ? '#374151' : 'transparent'}
+                  >
+                    <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                    <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Pontos do Ano</span>
+                  </button>
+                  {currentUser.isSuperAdmin && (
+                    <button
+                      onClick={() => setActiveSection("alterPointsIndividual")}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        color: activeSection === "alterPointsIndividual" ? '#F3F4F6' : '#3B82F6',
+                        backgroundColor: activeSection === "alterPointsIndividual" ? '#374151' : 'transparent',
+                        transition: 'all 0.3s'
+                      }}
+                      title="Pontos Individuais"
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "alterPointsIndividual" ? '#374151' : 'transparent'}
+                    >
+                      <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Pontos Individuais</span>
+                    </button>
+                  )}
+                  {currentUser.isSuperAdmin && (
+                    <button
+                      onClick={() => setActiveSection("manageAdmins")}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        color: activeSection === "manageAdmins" ? '#F3F4F6' : '#3B82F6',
+                        backgroundColor: activeSection === "manageAdmins" ? '#374151' : 'transparent',
+                        transition: 'all 0.3s'
+                      }}
+                      title="Gerenciar Admins"
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "manageAdmins" ? '#374151' : 'transparent'}
+                    >
+                      <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                      </svg>
+                      <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Gerenciar Admins</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setActiveSection("usersList")}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '1rem',
+                      color: activeSection === "usersList" ? '#F3F4F6' : '#3B82F6',
+                      backgroundColor: activeSection === "usersList" ? '#374151' : 'transparent',
+                      transition: 'all 0.3s'
+                    }}
+                    title="Alunos Cadastrados"
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "usersList" ? '#374151' : 'transparent'}
+                  >
+                    <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                    <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Alunos Cadastrados</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSection("history")}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '1rem',
+                      color: activeSection === "history" ? '#F3F4F6' : '#3B82F6',
+                      backgroundColor: activeSection === "history" ? '#374151' : 'transparent',
+                      transition: 'all 0.3s'
+                    }}
+                    title="Histórico"
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "history" ? '#374151' : 'transparent'}
+                  >
+                    <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Histórico</span>
+                  </button>
+                  <button
+                    onClick={() => setActiveSection("chat")}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: '1rem',
+                      color: activeSection === "chat" ? '#F3F4F6' : '#3B82F6',
+                      backgroundColor: activeSection === "chat" ? '#374151' : 'transparent',
+                      transition: 'all 0.3s'
+                    }}
+                    title="Chat Interno"
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "chat" ? '#374151' : 'transparent'}
+                  >
+                    <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Chat Interno</span>
+                  </button>
+                </nav>
+              </div>
+              <div style={{
+                flex: 1,
+                padding: '1.5rem',
+                marginLeft: sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem'),
+                transition: 'margin-left 0.5s ease',
+                maxWidth: '80rem',
+                margin: '0 auto',
+                minHeight: '100vh',
+                background: 'linear-gradient(to bottom right, #1F2937, #111827)',
+                '@media (max-width: 640px)': {
+                  marginLeft: '0',
+                  padding: '1rem',
+                },
+              }}>
+                <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button style={{ display: 'block', color: '#3B82F6' }} className="sm:hidden" onClick={() => setShowMobileMenu(true)}>
+                      <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                      </svg>
+                    </button>
+                    <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3B82F6' }}>
+                      Painel do Administrador {currentUser.isSuperAdmin && "(Superadmin)"}
+                    </h1>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <a href="index.html" style={{ color: '#3B82F6', transition: 'color 0.3s' }} onMouseOver={(e) => e.target.style.color = '#60A5FA'} onMouseOut={(e) => e.target.style.color = '#3B82F6'}>Cadastro/Login</a>
+                    <a href="ranking.html" style={{ color: '#3B82F6', transition: 'color 0.3s' }} onMouseOver={(e) => e.target.style.color = '#60A5FA'} onMouseOut={(e) => e.target.style.color = '#3B82F6'}>Ranking</a>
+                    <button
+                      onClick={logout}
+                      style={{ backgroundColor: '#EF4444', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#DC2626'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#EF4444'}
+                    >
+                      Sair
+                    </button>
+                  </div>
+                </nav>
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar usuário ou ano..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      style={{ padding: '0.5rem 0.5rem 0.5rem 2rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s', width: '100%', maxWidth: '16rem' }}
+                    />
+                    <svg style={{ position: 'absolute', left: '0.5rem', top: '0.625rem', width: '1.25rem', height: '1.25rem', color: '#3B82F6' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                </div>
+                {activeSection === "alterPointsYear" && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Alterar Pontos do Ano</h2>
+                    <form onSubmit={alterPoints} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <select
+                        value={pointsYear}
+                        onChange={(e) => setPointsYear(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      >
+                        <option value="">Selecione o ano</option>
+                        <option value="6">6º ano</option>
+                        <option value="7">7º ano</option>
+                        <option value="8">8º ano</option>
+                        <option value="9">9º ano</option>
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Pontos"
+                        value={pointsAmount}
+                        onChange={(e) => setPointsAmount(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Motivo"
+                        value={pointsReason}
+                        onChange={(e) => setPointsReason(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      />
+                      <button
+                        type="submit"
+                        style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                      >
+                        Alterar Pontos
+                      </button>
+                    </form>
+                  </div>
+                )}
+                {activeSection === "alterPointsIndividual" && currentUser.isSuperAdmin && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Alterar Pontos Individuais</h2>
+                    <form onSubmit={alterIndividualPoints} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <select
+                        value={individualUserId}
+                        onChange={(e) => setIndividualUserId(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      >
+                        <option value="">Selecione um usuário</option>
+                        {users.filter(u => !u.isSuperAdmin).map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Pontos"
+                        value={individualPoints}
+                        onChange={(e) => setIndividualPoints(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="Motivo"
+                        value={individualReason}
+                        onChange={(e) => setIndividualReason(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      />
+                      <button
+                        type="submit"
+                        style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                      >
+                        Alterar Pontos
+                      </button>
+                    </form>
+                  </div>
+                )}
+                {activeSection === "manageAdmins" && currentUser.isSuperAdmin && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Gerenciar Administradores</h2>
+                    <form onSubmit={(e) => { e.preventDefault(); toggleAdmin(Number(adminUserId)); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      <select
+                        value={adminUserId}
+                        onChange={(e) => setAdminUserId(e.target.value)}
+                        style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      >
+                        <option value="">Selecione um usuário</option>
+                        {users.filter(u => !u.isSuperAdmin).map(u => (
+                          <option key={u.id} value={u.id}>{u.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="submit"
+                        style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                      >
+                        {users.find(u => u.id === Number(adminUserId))?.isAdmin ? "Remover Admin" : "Tornar Admin"}
+                      </button>
+                    </form>
+                  </div>
+                )}
+                {activeSection === "usersList" && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Alunos Cadastrados</h2>
+                    <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                      <table style={{ width: '100%', textAlign: 'left', minWidth: '40rem' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#374151' }}>
+                            <th style={{ padding: '0.75rem' }}>Nome</th>
+                            <th style={{ padding: '0.75rem' }}>Ano</th>
+                            <th style={{ padding: '0.75rem' }}>Pontos</th>
+                            <th style={{ padding: '0.75rem' }}>Admin</th>
+                            <th style={{ padding: '0.75rem' }}>Status</th>
+                            <th style={{ padding: '0.75rem' }}>Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredUsers.map(user => (
+                            <tr key={user.id} style={{ borderTop: '1px solid #374151' }}>
+                              <td
+                                style={{ padding: '0.75rem', color: '#3B82F6', cursor: 'pointer' }}
+                                onClick={() => { setSelectedUser(user); setShowUserModal(true); }}
+                                onMouseOver={(e) => e.target.style.color = '#60A5FA'}
+                                onMouseOut={(e) => e.target.style.color = '#3B82F6'}
+                              >
+                                {user.name}
+                              </td>
+                              <td style={{ padding: '0.75rem' }}>{user.year}º</td>
+                              <td style={{ padding: '0.75rem' }}>{user.points || 0}</td>
+                              <td style={{ padding: '0.75rem' }}>{user.isAdmin ? "Sim" : "Não"}</td>
+                              <td style={{ padding: '0.75rem' }}>{user.blocked ? "Bloqueado" : "Ativo"}</td>
+                              <td style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <button
+                                  onClick={() => { setUserToDelete(user); setShowConfirmModal(true); }}
+                                  style={{ backgroundColor: '#EF4444', color: '#F3F4F6', padding: '0.5rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                                  disabled={user.isSuperAdmin}
+                                  onMouseOver={(e) => e.target.style.backgroundColor = '#DC2626'}
+                                  onMouseOut={(e) => e.target.style.backgroundColor = '#EF4444'}
+                                >
+                                  Excluir
+                                </button>
+                                <button
+                                  onClick={() => toggleBlock(user.id)}
+                                  style={{ backgroundColor: '#F59E0B', color: '#F3F4F6', padding: '0.5rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                                  disabled={user.isSuperAdmin}
+                                  onMouseOver={(e) => e.target.style.backgroundColor = '#D97706'}
+                                  onMouseOut={(e) => e.target.style.backgroundColor = '#F59E0B'}
+                                >
+                                  {user.blocked ? "Desbloquear" : "Bloquear"}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {activeSection === "history" && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Histórico de Alterações</h2>
+                    <div style={{ overflowX: 'auto', maxWidth: '100%' }}>
+                      <table style={{ width: '100%', textAlign: 'left', minWidth: '40rem' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#374151' }}>
+                            <th style={{ padding: '0.75rem' }}>Ano</th>
+                            <th style={{ padding: '0.75rem' }}>Usuário</th>
+                            <th style={{ padding: '0.75rem' }}>Pontos</th>
+                            <th style={{ padding: '0.75rem' }}>Motivo</th>
+                            <th style={{ padding: '0.75rem' }}>Admin</th>
+                            <th style={{ padding: '0.75rem' }}>Data</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {history.map((entry, index) => (
+                            <tr key={index} style={{ borderTop: '1px solid #374151' }}>
+                              <td style={{ padding: '0.75rem' }}>{entry.year}º</td>
+                              <td style={{ padding: '0.75rem' }}>{entry.user || "-"}</td>
+                              <td style={{ padding: '0.75rem' }}>{entry.points}</td>
+                              <td style={{ padding: '0.75rem' }}>{entry.reason}</td>
+                              <td style={{ padding: '0.75rem' }}>{entry.admin}</td>
+                              <td style={{ padding: '0.75rem' }}>{entry.date}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {activeSection === "chat" && (
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151' }}>
+                    <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Chat Interno</h2>
+                    <div style={{ maxHeight: '20rem', overflowY: 'auto', marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#111827', borderRadius: '0.375rem' }}>
+                      {chatMessages.map((msg, index) => (
+                        <div key={index} style={{ marginBottom: '0.5rem', padding: '0.5rem', backgroundColor: '#374151', borderRadius: '0.375rem' }}>
+                          <strong>{msg.from}</strong> ({msg.date}): {msg.text}
+                        </div>
+                      ))}
+                    </div>
+                    <form onSubmit={sendChatMessage} style={{ display: 'flex', gap: '0.5rem' }}>
+                      <input
+                        type="text"
+                        value={chatInput}
+                        onChange={(e) => setChatInput(e.target.value)}
+                        placeholder="Digite sua mensagem..."
+                        style={{ flex: 1, padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                      />
+                      <button
+                        type="submit"
+                        style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                      >
+                        Enviar
+                      </button>
+                    </form>
+                  </div>
+                )}
+              </div>
+              {showModal && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }}>
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '24rem' }}>
+                    <p style={{ color: '#F3F4F6', marginBottom: '1rem' }}>{modalMessage}</p>
+                    <button
+                      onClick={() => setShowModal(false)}
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showUserModal && selectedUser && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }}>
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '24rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Detalhes do Aluno</h3>
+                    <p><strong>Nome:</strong> {selectedUser.name}</p>
+                    <p><strong>Ano:</strong> {selectedUser.year}º</p>
+                    <p><strong>Pontos:</strong> {selectedUser.points || 0}</p>
+                    <p><strong>Senha:</strong> {selectedUser.password}</p>
+                    <p><strong>Admin:</strong> {selectedUser.isAdmin ? "Sim" : "Não"}</p>
+                    <button
+                      onClick={() => setShowUserModal(false)}
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', marginTop: '1rem', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Fechar
+                    </button>
+                  </div>
+                </div>
+              )}
+              {showConfirmModal && userToDelete && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }}>
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '24rem' }}>
+                    <p style={{ color: '#F3F4F6', marginBottom: '1rem' }}>Confirmar exclusão de {userToDelete.name}?</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <button
+                        onClick={deleteUser}
+                        style={{ backgroundColor: '#EF4444', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#DC2626'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#EF4444'}
+                      >
+                        Excluir
+                      </button>
+                      <button
+                        onClick={() => setShowConfirmModal(false)}
+                        style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                        onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                        onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                      >
+                        Cancelar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {showMobileMenu && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }} className="sm:hidden">
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '20rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                      <span style={{ color: '#3B82F6', fontWeight: 'bold' }}>CENSF Admin</span>
+                      <button onClick={() => setShowMobileMenu(false)} style={{ color: '#3B82F6' }}>
+                        <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                    <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      <button
+                        onClick={() => { setActiveSection("alterPointsYear"); setShowMobileMenu(false); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '1rem',
+                          color: activeSection === "alterPointsYear" ? '#F3F4F6' : '#3B82F6',
+                          backgroundColor: activeSection === "alterPointsYear" ? '#374151' : 'transparent',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                        Pontos do Ano
+                      </button>
+                      {currentUser.isSuperAdmin && (
+                        <button
+                          onClick={() => { setActiveSection("alterPointsIndividual"); setShowMobileMenu(false); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '1rem',
+                            color: activeSection === "alterPointsIndividual" ? '#F3F4F6' : '#3B82F6',
+                            backgroundColor: activeSection === "alterPointsIndividual" ? '#374151' : 'transparent',
+                            transition: 'all 0.3s'
+                          }}
+                        >
+                          <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          Pontos Individuais
+                        </button>
+                      )}
+                      {currentUser.isSuperAdmin && (
+                        <button
+                          onClick={() => { setActiveSection("manageAdmins"); setShowMobileMenu(false); }}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '1rem',
+                            color: activeSection === "manageAdmins" ? '#F3F4F6' : '#3B82F6',
+                            backgroundColor: activeSection === "manageAdmins" ? '#374151' : 'transparent',
+                            transition: 'all 0.3s'
+                          }}
+                        >
+                          <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+                          </svg>
+                          Gerenciar Admins
+                        </button>
+                      )}
+                      <button
+                        onClick={() => { setActiveSection("usersList"); setShowMobileMenu(false); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '1rem',
+                          color: activeSection === "usersList" ? '#F3F4F6' : '#3B82F6',
+                          backgroundColor: activeSection === "usersList" ? '#374151' : 'transparent',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        Alunos Cadastrados
+                      </button>
+                      <button
+                        onClick={() => { setActiveSection("history"); setShowMobileMenu(false); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '1rem',
+                          color: activeSection === "history" ? '#F3F4F6' : '#3B82F6',
+                          backgroundColor: activeSection === "history" ? '#374151' : 'transparent',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Histórico
+                      </button>
+                      <button
+                        onClick={() => { setActiveSection("chat"); setShowMobileMenu(false); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '1rem',
+                          color: activeSection === "chat" ? '#F3F4F6' : '#3B82F6',
+                          backgroundColor: activeSection === "chat" ? '#374151' : 'transparent',
+                          transition: 'all 0.3s'
+                        }}
+                      >
+                        <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        Chat Interno
+                      </button>
+                    </nav>
+                  </div>
+                </div>
+              )}
+              {showTutorial && (
+                <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+                  <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '24rem', textAlign: 'center' }}>
+                    <p style={{ color: '#F3F4F6', marginBottom: '1rem' }}>{tutorialSteps[tutorialStep].text}</p>
+                    <button
+                      onClick={nextTutorialStep}
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      {tutorialStep === 4 ? "Finalizar" : "Próximo"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <footer style={{ background: 'linear-gradient(to bottom right, #1F2937, #111827)', textAlign: 'center', color: '#9CA3AF', padding: '1.5rem', marginLeft: sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem'), transition: 'margin-left 0.5s ease', maxWidth: '80rem', margin: '0 auto', width: '100%', '@media (max-width: 640px)': { marginLeft: '0', padding: '1rem' } }}>
+            © 2025 Conselho Estudantil - CESF. Todos os direitos reservados.
+          </footer>
+        </div>
+      );
+    };
+
+    try {
+      ReactDOM.render(<App />, document.getElementById("root"));
+    } catch (error) {
+      console.error("Erro ao renderizar o componente:", error);
+    }
+  </script>
+  <style>
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    input:focus, select:focus {
+      box-shadow: 0 0 0 2px #3B82F6 !important;
+    }
+    @media (max-width: 640px) {
+      body {
+        background: #1F2937;
+      }
+      #root > div > div:nth-child(2) {
+        margin-left: 0 !important;
+        padding: 1rem;
+      }
+      table {
+        minWidth: 100% !important;
+      }
+    }
+    @media (min-width: 1024px) {
+      #root > div > div:nth-child(2) {
+        max-width: 90rem;
+      }
+    }
+  </style>
+</body>
+</html>

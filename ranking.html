@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Conselho Estudantil - CENSF | Ranking</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gradient-to-br from-gray-800 to-gray-900 text-white font-sans min-h-screen">
+  <div id="root" className="max-w-5xl mx-auto p-6"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const App = () => {
+      const [yearPoints, setYearPoints] = useState(JSON.parse(localStorage.getItem("yearPoints")) || {});
+
+      useEffect(() => {
+        const updatePoints = () => setYearPoints(JSON.parse(localStorage.getItem("yearPoints")) || {});
+        updatePoints();
+        const interval = setInterval(updatePoints, 1000);
+        return () => clearInterval(interval);
+      }, []);
+
+      const rankings = Object.keys(yearPoints).map(year => ({
+        year,
+        points: yearPoints[year]
+      })).sort((a, b) => b.points - a.points);
+
+      return (
+        <div>
+          <nav className="fixed top-0 left-0 w-full bg-gray-700 p-4 shadow-lg z-10">
+            <div className="max-w-5xl mx-auto flex flex-col sm:flex-row justify-between items-center">
+              <a href="index.html" className="text-2xl font-bold text-blue-500 transition duration-300">CENSF</a>
+              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 mt-2 sm:mt-0">
+                <a href="index.html" className="text-blue-500 hover:text-blue-400 transition duration-300">Cadastro/Login</a>
+                <a href="admin.html" className="text-blue-500 hover:text-blue-400 transition duration-300">Admin</a>
+              </div>
+            </div>
+          </nav>
+          <div className="mt-20 flex justify-center">
+            <div className="bg-gray-800 p-4 rounded-lg shadow-lg border border-gray-700 w-full max-w-xl">
+              <h1 className="text-3xl font-bold mb-6 text-blue-500 text-center">Ranking Geral</h1>
+              <h2 className="text-xl font-semibold mb-4 text-blue-500 text-center">Ranking de Anos</h2>
+              <div className="overflow-x-auto max-h-64">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="bg-gray-700">
+                      <th className="p-2">Pos.</th>
+                      <th className="p-2">Ano</th>
+                      <th className="p-2">Pts</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rankings.map((entry, index) => (
+                      <tr key={entry.year} className="border-t border-gray-700">
+                        <td className="p-2">{index + 1}</td>
+                        <td className="p-2">{entry.year}º</td>
+                        <td className="p-2">{entry.points}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+          <footer className="mt-8 text-center text-gray-400">
+            © 2025 Conselho Estudantil - CESF. Todos os direitos reservados.
+          </footer>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<App />, document.getElementById("root"));
+  </script>
+  <style>
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .animate-fade-in { animation: fade-in 0.3s ease-out; }
+    @media (max-width: 640px) {
+      body {
+        background: linear-gradient(to bottom right, #4B5563, #1F2937);
+      }
+    }
+  </style>
+</body>
+</html>

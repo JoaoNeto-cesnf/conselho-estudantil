@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Conselho Estudantil - CENSF | Login</title>
+  <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.development.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.20.15/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body style="background: linear-gradient(to bottom right, #1F2937, #111827); color: #F3F4F6; margin: 0; min-height: 100vh; overflow-x: hidden;">
+  <div id="root" style="min-height: 100vh; display: flex; flex-direction: column;"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const updateStorage = (key, value) => {
+      localStorage.setItem(key, JSON.stringify(value));
+      return value;
+    };
+
+    const App = () => {
+      const [users, setUsers] = useState(JSON.parse(localStorage.getItem("users")) || []);
+      const [name, setName] = useState("");
+      const [password, setPassword] = useState("");
+      const [modalMessage, setModalMessage] = useState("");
+      const [showModal, setShowModal] = useState(false);
+      const [currentUser, setCurrentUser] = useState(JSON.parse(localStorage.getItem("currentUser")) || null);
+      const [isSidebarExpanded, setIsSidebarExpanded] = useState(false);
+      const [showMobileMenu, setShowMobileMenu] = useState(false);
+      const [sidebarFixed, setSidebarFixed] = useState(false);
+      const [chatMessages, setChatMessages] = useState(JSON.parse(localStorage.getItem("messages")) || []);
+      const [chatInput, setChatInput] = useState("");
+      const [activeSection, setActiveSection] = useState("login");
+
+      const validateInput = (value, field) => {
+        if (!value.trim()) return `${field} não pode estar vazio!`;
+        return "";
+      };
+
+      const login = () => {
+        const nameError = validateInput(name, "Nome");
+        const passwordError = validateInput(password, "Senha");
+        if (nameError || passwordError) {
+          setModalMessage(nameError || passwordError);
+          setShowModal(true);
+          return;
+        }
+        const user = users.find(u => u.name === name && u.password === password);
+        if (!user) {
+          setModalMessage("Nome ou senha incorretos!");
+          setShowModal(true);
+          return;
+        }
+        setCurrentUser(user);
+        updateStorage("currentUser", user);
+        setName("");
+        setPassword("");
+        if (user.isAdmin) window.location.href = "admin.html";
+      };
+
+      const register = (e) => {
+        e.preventDefault();
+        const nameError = validateInput(name, "Nome");
+        const passwordError = validateInput(password, "Senha");
+        if (nameError || passwordError) {
+          setModalMessage(nameError || passwordError);
+          setShowModal(true);
+          return;
+        }
+        if (users.some(u => u.name === name)) {
+          setModalMessage("Nome já cadastrado!");
+          setShowModal(true);
+          return;
+        }
+        const newUser = { id: Date.now(), name, password, year: 6, points: 0, isAdmin: false, blocked: false };
+        const updatedUsers = [...users, newUser];
+        setUsers(updateStorage("users", updatedUsers));
+        setModalMessage("Usuário cadastrado com sucesso!");
+        setShowModal(true);
+        setName("");
+        setPassword("");
+      };
+
+      const handleMouseEnter = () => {
+        if (!sidebarFixed && currentUser) setIsSidebarExpanded(true);
+      };
+
+      const handleMouseLeave = () => {
+        if (!sidebarFixed && currentUser) setTimeout(() => setIsSidebarExpanded(false), 200);
+      };
+
+      const sendChatMessage = (e) => {
+        e.preventDefault();
+        if (!chatInput.trim()) return;
+        const newMessage = { from: currentUser.name, text: chatInput, date: new Date().toLocaleString(), read: false };
+        const updatedMessages = [...chatMessages, newMessage];
+        setChatMessages(updatedMessages);
+        updateStorage("messages", updatedMessages);
+        setChatInput("");
+      };
+
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', flex: 1, minHeight: '100vh' }}>
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                height: '100%',
+                backgroundColor: '#1F2937',
+                borderRight: '1px solid #374151',
+                transition: 'width 0.5s ease',
+                width: currentUser ? (sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem')) : '0',
+                zIndex: 10,
+                visibility: currentUser ? 'visible' : 'hidden',
+              }}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem' }}>
+                <span style={{ color: '#3B82F6', fontWeight: 'bold', display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>CENSF</span>
+                <div>
+                  <button
+                    style={{ display: 'block', color: '#3B82F6', marginBottom: '0.5rem' }}
+                    className="sm:hidden"
+                    onClick={() => setShowMobileMenu(true)}
+                  >
+                    <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => setSidebarFixed(!sidebarFixed)}
+                    style={{
+                      display: isSidebarExpanded || sidebarFixed ? 'block' : 'none',
+                      color: '#3B82F6',
+                      padding: '0.25rem 0.5rem',
+                      borderRadius: '0.375rem',
+                      backgroundColor: sidebarFixed ? '#374151' : 'transparent',
+                      transition: 'all 0.3s'
+                    }}
+                    onMouseOver={(e) => !sidebarFixed && (e.target.style.backgroundColor = '#374151')}
+                    onMouseOut={(e) => !sidebarFixed && (e.target.style.backgroundColor = 'transparent')}
+                  >
+                    {sidebarFixed ? 'Desfixar' : 'Fixar'}
+                  </button>
+                </div>
+              </div>
+              <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '1rem' }}>
+                <button
+                  onClick={() => setActiveSection("chat")}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '1rem',
+                    color: activeSection === "chat" ? '#F3F4F6' : '#3B82F6',
+                    backgroundColor: activeSection === "chat" ? '#374151' : 'transparent',
+                    transition: 'all 0.3s'
+                  }}
+                  title="Chat"
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "chat" ? '#374151' : 'transparent'}
+                >
+                  <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                  <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Chat</span>
+                </button>
+                <button
+                  onClick={() => window.location.href = "ranking.html"}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '1rem',
+                    color: activeSection === "ranking" ? '#F3F4F6' : '#3B82F6',
+                    backgroundColor: activeSection === "ranking" ? '#374151' : 'transparent',
+                    transition: 'all 0.3s'
+                  }}
+                  title="Ranking"
+                  onMouseOver={(e) => e.target.style.backgroundColor = '#374151'}
+                  onMouseOut={(e) => e.target.style.backgroundColor = activeSection === "ranking" ? '#374151' : 'transparent'}
+                >
+                  <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                  </svg>
+                  <span style={{ display: isSidebarExpanded || sidebarFixed ? 'block' : 'none' }}>Ranking</span>
+                </button>
+              </nav>
+            </div>
+            <div style={{
+              flex: 1,
+              padding: '1.5rem',
+              marginLeft: currentUser ? (sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem')) : '0',
+              transition: 'margin-left 0.5s ease',
+              maxWidth: '80rem',
+              margin: '0 auto',
+              minHeight: '100vh',
+              background: 'linear-gradient(to bottom right, #1F2937, #111827)',
+              '@media (max-width: 640px)': {
+                marginLeft: '0',
+                padding: '1rem',
+              },
+            }}>
+              <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                  <button style={{ display: 'block', color: '#3B82F6' }} className="sm:hidden" onClick={() => setShowMobileMenu(true)}>
+                    <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7" />
+                    </svg>
+                  </button>
+                  <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#3B82F6' }}>Conselho Estudantil CESF</h1>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                  {currentUser && (
+                    <span style={{ color: '#3B82F6', fontWeight: 'bold', padding: '0.5rem 1rem', borderRadius: '0.375rem', backgroundColor: '#374151' }}>
+                      Pontos: {currentUser.points || 0}
+                    </span>
+                  )}
+                  <a href="ranking.html" style={{ color: '#3B82F6', transition: 'color 0.3s' }} onMouseOver={(e) => e.target.style.color = '#60A5FA'} onMouseOut={(e) => e.target.style.color = '#3B82F6'}>Ranking</a>
+                  {currentUser && (
+                    <button
+                      onClick={() => { setCurrentUser(null); localStorage.removeItem("currentUser"); }}
+                      style={{ backgroundColor: '#EF4444', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#DC2626'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#EF4444'}
+                    >
+                      Sair
+                    </button>
+                  )}
+                </div>
+              </nav>
+              {activeSection === "login" && !currentUser && (
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', maxWidth: '28rem', width: '90%', margin: '0 auto' }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Login</h2>
+                  <form onSubmit={(e) => { e.preventDefault(); login(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Nome de Usuário"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <button
+                      type="submit"
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Entrar
+                    </button>
+                  </form>
+                  <p style={{ textAlign: 'center', marginTop: '1rem', color: '#9CA3AF' }}>
+                    Não tem conta? <a href="#" onClick={() => setActiveSection("register")} style={{ color: '#60A5FA', textDecoration: 'underline' }}>Cadastre-se</a>
+                  </p>
+                </div>
+              )}
+              {activeSection === "register" && !currentUser && (
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', maxWidth: '28rem', width: '90%', margin: '0 auto' }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Cadastro</h2>
+                  <form onSubmit={register} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <input
+                      type="text"
+                      placeholder="Nome de Usuário"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <input
+                      type="password"
+                      placeholder="Senha"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      style={{ width: '100%', padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <button
+                      type="submit"
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Cadastrar
+                    </button>
+                  </form>
+                  <p style={{ textAlign: 'center', marginTop: '1rem', color: '#9CA3AF' }}>
+                    Já tem conta? <a href="#" onClick={() => setActiveSection("login")} style={{ color: '#60A5FA', textDecoration: 'underline' }}>Faça login</a>
+                  </p>
+                </div>
+              )}
+              {activeSection === "chat" && currentUser && (
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #374151', marginTop: '1.5rem' }}>
+                  <h2 style={{ fontSize: '1.25rem', fontWeight: '600', marginBottom: '1rem', color: '#3B82F6' }}>Chat</h2>
+                  <div style={{ maxHeight: '20rem', overflowY: 'auto', marginBottom: '1rem', padding: '0.5rem', backgroundColor: '#111827', borderRadius: '0.375rem' }}>
+                    {chatMessages.map((msg, index) => (
+                      <div key={index} style={{ marginBottom: '0.5rem', padding: '0.5rem', backgroundColor: '#374151', borderRadius: '0.375rem' }}>
+                        <strong>{msg.from}</strong> ({msg.date}): {msg.text}
+                      </div>
+                    ))}
+                  </div>
+                  <form onSubmit={sendChatMessage} style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Digite sua mensagem..."
+                      style={{ flex: 1, padding: '0.75rem', border: '1px solid #374151', borderRadius: '0.375rem', backgroundColor: '#111827', color: '#F3F4F6', outline: 'none', transition: 'all 0.3s' }}
+                    />
+                    <button
+                      type="submit"
+                      style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', transition: 'background-color 0.3s' }}
+                      onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                      onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                    >
+                      Enviar
+                    </button>
+                  </form>
+                </div>
+              )}
+              {currentUser && (
+                <div style={{ textAlign: 'center', marginTop: '1.5rem', color: '#9CA3AF' }}>
+                  Bem-vindo, {currentUser.name}! {currentUser.isAdmin && (
+                    <a href="admin.html" style={{ color: '#60A5FA', textDecoration: 'underline', marginLeft: '0.5rem' }}>Acessar Painel Admin</a>
+                  )}
+                </div>
+              )}
+            </div>
+            {showMobileMenu && currentUser && (
+              <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }} className="sm:hidden">
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '20rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <span style={{ color: '#3B82F6', fontWeight: 'bold' }}>CENSF</span>
+                    <button onClick={() => setShowMobileMenu(false)} style={{ color: '#3B82F6' }}>
+                      <svg style={{ width: '1.5rem', height: '1.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => { setActiveSection("chat"); setShowMobileMenu(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        color: activeSection === "chat" ? '#F3F4F6' : '#3B82F6',
+                        backgroundColor: activeSection === "chat" ? '#374151' : 'transparent',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                      </svg>
+                      Chat
+                    </button>
+                    <button
+                      onClick={() => { window.location.href = "ranking.html"; setShowMobileMenu(false); }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '1rem',
+                        color: activeSection === "ranking" ? '#F3F4F6' : '#3B82F6',
+                        backgroundColor: activeSection === "ranking" ? '#374151' : 'transparent',
+                        transition: 'all 0.3s'
+                      }}
+                    >
+                      <svg style={{ width: '1.5rem', height: '1.5rem', marginRight: '0.5rem' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                      </svg>
+                      Ranking
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            )}
+            {showModal && (
+              <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', animation: 'fade-in 0.3s ease-out', zIndex: 40 }}>
+                <div style={{ backgroundColor: '#1F2937', padding: '1.5rem', borderRadius: '0.5rem', border: '1px solid #374151', width: '100%', maxWidth: '24rem' }}>
+                  <p style={{ color: '#F3F4F6', marginBottom: '1rem' }}>{modalMessage}</p>
+                  <button
+                    onClick={() => setShowModal(false)}
+                    style={{ backgroundColor: '#3B82F6', color: '#F3F4F6', padding: '0.75rem', borderRadius: '0.375rem', width: '100%', transition: 'background-color 0.3s' }}
+                    onMouseOver={(e) => e.target.style.backgroundColor = '#2563EB'}
+                    onMouseOut={(e) => e.target.style.backgroundColor = '#3B82F6'}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <footer style={{ background: 'linear-gradient(to bottom right, #1F2937, #111827)', textAlign: 'center', color: '#9CA3AF', padding: '1.5rem', marginLeft: currentUser ? (sidebarFixed ? '16rem' : (isSidebarExpanded ? '16rem' : '4rem')) : '0', transition: 'margin-left 0.5s ease', maxWidth: '80rem', margin: '0 auto', width: '100%', '@media (max-width: 640px)': { marginLeft: '0', padding: '1rem' } }}>
+            © 2025 Conselho Estudantil - CESF. Todos os direitos reservados.
+          </footer>
+        </div>
+      );
+    };
+
+    try {
+      ReactDOM.render(<App />, document.getElementById("root"));
+    } catch (error) {
+      console.error("Erro ao renderizar o componente:", error);
+    }
+  </script>
+  <style>
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    input:focus, select:focus {
+      box-shadow: 0 0 0 2px #3B82F6 !important;
+    }
+    @media (max-width: 640px) {
+      body {
+        background: #1F2937;
+      }
+      #root > div > div:nth-child(2) {
+        margin-left: 0 !important;
+        padding: 1rem;
+      }
+    }
+    @media (min-width: 1024px) {
+      #root > div > div:nth-child(2) {
+        max-width: 90rem;
+      }
+    }
+  </style>
+</body>
+</html>
